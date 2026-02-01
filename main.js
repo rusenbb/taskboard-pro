@@ -3672,7 +3672,7 @@ var TaskBoardView = class extends import_obsidian2.ItemView {
     if (file) {
       const leaf = this.app.workspace.getLeaf(false);
       await leaf.openFile(file, {
-        eState: { line: task.lineNumber }
+        eState: { line: task.lineNumber - 1 }
       });
     }
   }

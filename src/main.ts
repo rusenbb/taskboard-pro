@@ -376,7 +376,7 @@ class TaskBoardView extends ItemView {
 		if (file) {
 			const leaf = this.app.workspace.getLeaf(false);
 			await leaf.openFile(file as any, {
-				eState: { line: task.lineNumber }
+				eState: { line: task.lineNumber - 1 }
 			});
 		}
 	}
