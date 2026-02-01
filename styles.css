@@ -1,0 +1,221 @@
+/* TaskBoard Pro Styles */
+
+.taskboard-container {
+	padding: 16px;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.taskboard-header {
+	margin-bottom: 16px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.taskboard-header-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.taskboard-header h2 {
+	margin: 0;
+}
+
+.taskboard-header p {
+	margin: 4px 0 0 0;
+	color: var(--text-muted);
+	font-size: 0.9em;
+}
+
+.taskboard-refresh-btn {
+	padding: 4px 12px;
+	border-radius: 4px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	cursor: pointer;
+	font-size: 0.85em;
+}
+
+.taskboard-refresh-btn:hover {
+	background: var(--interactive-accent-hover);
+}
+
+.taskboard-columns {
+	display: flex;
+	gap: 12px;
+	flex: 1;
+	overflow-x: auto;
+	padding-bottom: 8px;
+}
+
+.taskboard-column {
+	flex: 1;
+	min-width: 220px;
+	max-width: 320px;
+	background: var(--background-secondary);
+	border-radius: 8px;
+	padding: 12px;
+	display: flex;
+	flex-direction: column;
+}
+
+.taskboard-column-header {
+	font-weight: 600;
+	margin-bottom: 12px;
+	padding-bottom: 8px;
+	border-bottom: 2px solid var(--interactive-accent);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.taskboard-column-count {
+	font-weight: normal;
+	color: var(--text-muted);
+	font-size: 0.9em;
+}
+
+.taskboard-cards {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	overflow-y: auto;
+}
+
+.taskboard-card {
+	background: var(--background-primary);
+	border-radius: 6px;
+	padding: 10px 12px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	cursor: grab;
+	border-left: 3px solid var(--interactive-accent);
+	transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.taskboard-card:hover {
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	transform: translateY(-1px);
+}
+
+.taskboard-card:active {
+	cursor: grabbing;
+}
+
+.taskboard-card-dragging {
+	opacity: 0.5;
+	transform: rotate(2deg);
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+.taskboard-drop-active {
+	background: var(--interactive-accent-hover);
+	border: 2px dashed var(--interactive-accent);
+	border-radius: 6px;
+}
+
+.taskboard-card-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.taskboard-card-text {
+	font-size: 0.95em;
+	line-height: 1.4;
+	flex: 1;
+}
+
+.taskboard-card-completed {
+	opacity: 0.7;
+	border-left-color: var(--text-muted);
+}
+
+.taskboard-card-completed .taskboard-card-text {
+	text-decoration: line-through;
+	color: var(--text-muted);
+}
+
+.taskboard-archive-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 2px 4px;
+	font-size: 0.9em;
+	opacity: 0.6;
+	border-radius: 4px;
+	transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.taskboard-archive-btn:hover {
+	opacity: 1;
+	background: var(--background-modifier-hover);
+}
+
+.taskboard-card-done {
+	opacity: 0.8;
+}
+
+.taskboard-card-meta {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	font-size: 0.8em;
+	color: var(--text-muted);
+}
+
+.taskboard-card-due {
+	background: var(--background-secondary);
+	padding: 2px 6px;
+	border-radius: 4px;
+}
+
+.taskboard-card-recurring {
+	opacity: 0.8;
+}
+
+.taskboard-card-source {
+	margin-top: 8px;
+	padding-top: 6px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.taskboard-card-link {
+	font-size: 0.75em;
+	color: var(--text-muted);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.taskboard-card-link:hover {
+	color: var(--text-accent);
+	text-decoration: underline;
+}
+
+.taskboard-card-empty {
+	color: var(--text-muted);
+	font-size: 0.85em;
+	font-style: italic;
+	text-align: center;
+	padding: 20px;
+}
+
+.taskboard-card-placeholder {
+	color: var(--text-muted);
+	font-size: 0.85em;
+	font-style: italic;
+	cursor: default;
+}
+
+.taskboard-status {
+	margin-top: 16px;
+	padding-top: 12px;
+	border-top: 1px solid var(--background-modifier-border);
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
