@@ -5,5 +5,5 @@
 	"minAppVersion": "1.0.0",
 	"description": "Kanban-style task board with Tasks plugin integration for recurring tasks",
 	"author": "Rusen",
-	"isDesktopOnly": true
+	"isDesktopOnly": false
 }
