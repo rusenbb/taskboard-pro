@@ -219,3 +219,408 @@
 	font-size: 0.85em;
 	color: var(--text-muted);
 }
+
+/* ========================================
+   Time Filter Bar
+   ======================================== */
+
+.taskboard-filter-bar {
+	margin-bottom: 16px;
+	padding: 12px;
+	background: var(--background-secondary);
+	border-radius: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.taskboard-filter-presets {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.taskboard-filter-preset-btn {
+	padding: 4px 12px;
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	font-size: 0.85em;
+	transition: all 0.15s ease;
+}
+
+.taskboard-filter-preset-btn:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+}
+
+.taskboard-filter-preset-btn.active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.taskboard-filter-dates {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.taskboard-filter-date-label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.taskboard-filter-date-input {
+	padding: 4px 8px;
+	border-radius: 4px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: 0.85em;
+}
+
+.taskboard-filter-date-input:focus {
+	border-color: var(--interactive-accent);
+	outline: none;
+}
+
+.taskboard-filter-count {
+	margin-left: auto;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+/* ========================================
+   Settings Column Management
+   ======================================== */
+
+.taskboard-settings-columns {
+	margin: 12px 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.taskboard-settings-column-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border-radius: 6px;
+}
+
+.taskboard-settings-reorder {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.taskboard-settings-reorder-btn {
+	padding: 2px 6px;
+	font-size: 0.7em;
+	background: var(--background-modifier-hover);
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	color: var(--text-muted);
+	line-height: 1;
+}
+
+.taskboard-settings-reorder-btn:hover:not(:disabled) {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.taskboard-settings-reorder-btn:disabled {
+	opacity: 0.3;
+	cursor: not-allowed;
+}
+
+.taskboard-settings-column-name {
+	flex: 1;
+	padding: 6px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: 0.9em;
+	min-width: 100px;
+}
+
+.taskboard-settings-column-name:focus {
+	border-color: var(--interactive-accent);
+	outline: none;
+}
+
+.taskboard-settings-column-tag {
+	font-family: var(--font-monospace);
+	font-size: 0.8em;
+	color: var(--text-muted);
+	background: var(--background-primary);
+	padding: 4px 8px;
+	border-radius: 4px;
+	white-space: nowrap;
+}
+
+.taskboard-settings-edit-id-btn,
+.taskboard-settings-delete-btn {
+	padding: 4px 10px;
+	font-size: 0.8em;
+	border-radius: 4px;
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-muted);
+}
+
+.taskboard-settings-edit-id-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.taskboard-settings-delete-btn:hover:not(:disabled) {
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+	border-color: var(--background-modifier-error);
+}
+
+.taskboard-settings-delete-btn:disabled {
+	opacity: 0.3;
+	cursor: not-allowed;
+}
+
+.taskboard-settings-error {
+	color: var(--text-error);
+	font-size: 0.85em;
+	margin: 4px 0;
+}
+
+/* ========================================
+   Header Buttons
+   ======================================== */
+
+.taskboard-header-buttons {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.taskboard-archive-toggle-btn {
+	padding: 4px 12px;
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	font-size: 0.85em;
+	transition: all 0.15s ease;
+}
+
+.taskboard-archive-toggle-btn:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+}
+
+.taskboard-archive-toggle-btn.active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+/* ========================================
+   Column Header with Add Button
+   ======================================== */
+
+.taskboard-column-header-left {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.taskboard-add-task-btn {
+	width: 24px;
+	height: 24px;
+	border-radius: 4px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 1.2em;
+	font-weight: bold;
+	line-height: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.15s ease;
+}
+
+.taskboard-add-task-btn:hover {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+/* ========================================
+   Tag Filter Chips
+   ======================================== */
+
+.taskboard-filter-tags {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding-top: 10px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.taskboard-filter-tags-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	margin-right: 4px;
+}
+
+.taskboard-tag-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.taskboard-tag-chip {
+	padding: 3px 10px;
+	border-radius: 12px;
+	background: var(--background-primary);
+	color: var(--text-muted);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	font-size: 0.8em;
+	transition: all 0.15s ease;
+}
+
+.taskboard-tag-chip:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+	color: var(--text-normal);
+}
+
+.taskboard-tag-chip.selected {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.taskboard-tag-clear-btn {
+	padding: 3px 10px;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--text-muted);
+	border: none;
+	cursor: pointer;
+	font-size: 0.8em;
+	text-decoration: underline;
+}
+
+.taskboard-tag-clear-btn:hover {
+	color: var(--text-error);
+}
+
+/* ========================================
+   Archive Section
+   ======================================== */
+
+.taskboard-archive-section {
+	margin-top: 16px;
+	padding: 16px;
+	background: var(--background-secondary);
+	border-radius: 8px;
+	border-left: 3px solid var(--text-muted);
+}
+
+.taskboard-archive-header {
+	font-weight: 600;
+	margin-bottom: 12px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.taskboard-archive-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.taskboard-archive-empty {
+	color: var(--text-muted);
+	font-style: italic;
+	text-align: center;
+	padding: 20px;
+}
+
+.taskboard-archive-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	background: var(--background-primary);
+	border-radius: 6px;
+}
+
+.taskboard-archive-text {
+	flex: 1;
+	font-size: 0.9em;
+	color: var(--text-muted);
+}
+
+.taskboard-archive-date {
+	font-size: 0.8em;
+	color: var(--text-faint);
+	white-space: nowrap;
+}
+
+.taskboard-unarchive-btn {
+	padding: 4px 10px;
+	border-radius: 4px;
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	border: none;
+	cursor: pointer;
+	font-size: 0.8em;
+	transition: all 0.15s ease;
+}
+
+.taskboard-unarchive-btn:hover {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+/* ========================================
+   Add Task Modal
+   ======================================== */
+
+.taskboard-add-task-modal {
+	padding: 10px;
+}
+
+.taskboard-add-task-modal h3 {
+	margin-top: 0;
+	margin-bottom: 16px;
+}
+
+.taskboard-add-task-info {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	margin: 16px 0;
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+}

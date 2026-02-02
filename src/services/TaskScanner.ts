@@ -3,7 +3,7 @@ import { Task, TaskBoardSettings } from '../types';
 import { TaskParser } from './TaskParser';
 
 /**
- * Scans the entire vault for tasks
+ * Scans the vault or configured files for tasks
  */
 export class TaskScanner {
 	private app: App;
@@ -12,6 +12,57 @@ export class TaskScanner {
 	constructor(app: App, settings: TaskBoardSettings) {
 		this.app = app;
 		this.settings = settings;
+	}
+
+	/**
+	 * Get tasks based on current settings (three-file or vault-wide)
+	 */
+	async getTasks(): Promise<Task[]> {
+		if (this.settings.useThreeFileSystem) {
+			return this.scanConfiguredFiles();
+		}
+		return this.scanVault();
+	}
+
+	/**
+	 * Scan only the configured recurring and todo files (three-file mode)
+	 */
+	async scanConfiguredFiles(): Promise<Task[]> {
+		const tasks: Task[] = [];
+		const filePaths = [
+			this.settings.recurringTasksFile,
+			this.settings.todoFile
+		];
+
+		for (const filePath of filePaths) {
+			const file = this.app.vault.getAbstractFileByPath(filePath);
+			if (file && file instanceof TFile) {
+				const fileTasks = await this.scanFile(file);
+				tasks.push(...fileTasks);
+			} else {
+				console.warn(`TaskBoard: Configured file not found: ${filePath}`);
+			}
+		}
+
+		console.log(`TaskBoard: Scanned ${filePaths.length} configured files, found ${tasks.length} tasks`);
+		return tasks;
+	}
+
+	/**
+	 * Scan the archive file for archived tasks
+	 */
+	async scanArchiveFile(): Promise<Task[]> {
+		const filePath = this.settings.archiveFile;
+		const file = this.app.vault.getAbstractFileByPath(filePath);
+
+		if (!file || !(file instanceof TFile)) {
+			console.warn(`TaskBoard: Archive file not found: ${filePath}`);
+			return [];
+		}
+
+		const tasks = await this.scanFile(file);
+		console.log(`TaskBoard: Scanned archive file, found ${tasks.length} archived tasks`);
+		return tasks;
 	}
 
 	/**
@@ -87,8 +138,31 @@ export class TaskScanner {
 	}
 
 	/**
+	 * Filter tasks by status (for column display)
+	 * This is the primary method used by columns - simpler than filterTasks()
+	 */
+	static filterTasksByStatus(tasks: Task[], statusId: string, includeCompleted: boolean = false): Task[] {
+		// For 'done' status, always show completed tasks
+		const showCompleted = includeCompleted || statusId === 'done';
+
+		// Pre-filter: exclude archived tasks, then filter by completion status
+		let filteredTasks = tasks.filter(t => !t.tags.includes('#archived'));
+		filteredTasks = showCompleted ? filteredTasks : filteredTasks.filter(t => !t.completed);
+
+		// For done column, show tasks that are either:
+		// 1. Have #status/done tag, OR
+		// 2. Are completed (checkbox marked)
+		if (statusId === 'done') {
+			return filteredTasks.filter(t => t.status === 'done' || t.completed);
+		}
+
+		return filteredTasks.filter(t => t.status === statusId);
+	}
+
+	/**
 	 * Filter tasks by column filter string
 	 * Supports: status:xxx, tag:xxx, due:today, due:overdue
+	 * @deprecated Use filterTasksByStatus() for column filtering
 	 */
 	static filterTasks(tasks: Task[], filter: string, includeCompleted: boolean = false): Task[] {
 		const [filterType, filterValue] = filter.split(':');
