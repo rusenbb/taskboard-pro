@@ -307,6 +307,7 @@ class TaskBoardView extends ItemView {
 		const presetsRow = filterBar.createEl('div', { cls: 'taskboard-filter-presets' });
 
 		const presets: { id: TimeFilterPreset; label: string }[] = [
+			{ id: 'overdue', label: 'Overdue' },
 			{ id: 'today', label: 'Today' },
 			{ id: 'this_week', label: 'This Week' },
 			{ id: 'this_month', label: 'This Month' },
@@ -473,6 +474,18 @@ class TaskBoardView extends ItemView {
 		// 'all' preset means no time filtering
 		if (this.timeFilter.preset === 'all') {
 			return tasks;
+		}
+
+		// 'overdue' preset: only tasks with due dates before today
+		if (this.timeFilter.preset === 'overdue') {
+			return tasks.filter(task => {
+				// Unscheduled tasks are not overdue
+				if (!task.dueDate) {
+					return this.showUnscheduled;
+				}
+				// Check if due date is before today
+				return DateUtils.isInRange(task.dueDate, this.timeFilter.fromDate, this.timeFilter.toDate);
+			});
 		}
 
 		return tasks.filter(task => {

@@ -3670,6 +3670,11 @@ var DateUtils = class {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const from = this.formatDate(today);
     switch (preset) {
+      case "overdue": {
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        return { from: "1970-01-01", to: this.formatDate(yesterday) };
+      }
       case "today":
         return { from, to: from };
       case "this_week": {
@@ -3956,6 +3961,7 @@ var TaskBoardView = class extends import_obsidian3.ItemView {
     const filterBar = container.createEl("div", { cls: "taskboard-filter-bar" });
     const presetsRow = filterBar.createEl("div", { cls: "taskboard-filter-presets" });
     const presets = [
+      { id: "overdue", label: "Overdue" },
       { id: "today", label: "Today" },
       { id: "this_week", label: "This Week" },
       { id: "this_month", label: "This Month" },
@@ -4091,6 +4097,14 @@ var TaskBoardView = class extends import_obsidian3.ItemView {
   applyTimeFilter(tasks) {
     if (this.timeFilter.preset === "all") {
       return tasks;
+    }
+    if (this.timeFilter.preset === "overdue") {
+      return tasks.filter((task) => {
+        if (!task.dueDate) {
+          return this.showUnscheduled;
+        }
+        return DateUtils.isInRange(task.dueDate, this.timeFilter.fromDate, this.timeFilter.toDate);
+      });
     }
     return tasks.filter((task) => {
       if (!task.dueDate) {

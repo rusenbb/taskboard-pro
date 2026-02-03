@@ -42,6 +42,13 @@ export class DateUtils {
 		const from = this.formatDate(today);
 
 		switch (preset) {
+			case 'overdue': {
+				// From distant past to yesterday
+				const yesterday = new Date(today);
+				yesterday.setDate(today.getDate() - 1);
+				return { from: '1970-01-01', to: this.formatDate(yesterday) };
+			}
+
 			case 'today':
 				return { from, to: from };
 

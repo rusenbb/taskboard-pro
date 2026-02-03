@@ -31,7 +31,7 @@ export interface ColumnConfig {
 }
 
 // Time filter types
-export type TimeFilterPreset = 'today' | 'this_week' | 'this_month' | 'this_quarter' | 'this_year' | 'all' | 'custom';
+export type TimeFilterPreset = 'overdue' | 'today' | 'this_week' | 'this_month' | 'this_quarter' | 'this_year' | 'all' | 'custom';
 
 export interface TimeFilter {
 	preset: TimeFilterPreset;
