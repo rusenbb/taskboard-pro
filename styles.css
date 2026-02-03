@@ -624,3 +624,95 @@
 	background: var(--background-secondary);
 	border-radius: 4px;
 }
+
+/* ========================================
+   Unscheduled Toggle
+   ======================================== */
+
+.taskboard-unscheduled-toggle-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding-top: 10px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.taskboard-unscheduled-toggle-btn {
+	padding: 4px 12px;
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	font-size: 0.85em;
+	transition: all 0.15s ease;
+}
+
+.taskboard-unscheduled-toggle-btn:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+}
+
+.taskboard-unscheduled-toggle-btn.active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.taskboard-unscheduled-count {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+/* ========================================
+   Quick Schedule Buttons
+   ======================================== */
+
+.taskboard-quick-schedule {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.taskboard-quick-schedule-btn {
+	padding: 2px 8px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	font-size: 0.75em;
+	transition: all 0.15s ease;
+}
+
+.taskboard-quick-schedule-btn:hover {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.taskboard-quick-schedule-picker {
+	padding: 2px 6px;
+}
+
+/* ========================================
+   Schedule Task Modal
+   ======================================== */
+
+.taskboard-schedule-modal {
+	padding: 10px;
+}
+
+.taskboard-schedule-modal h3 {
+	margin-top: 0;
+	margin-bottom: 16px;
+}
+
+.taskboard-schedule-task-text {
+	font-size: 0.95em;
+	padding: 10px 12px;
+	background: var(--background-secondary);
+	border-radius: 6px;
+	border-left: 3px solid var(--interactive-accent);
+	margin-bottom: 16px;
+}

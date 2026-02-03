@@ -301,6 +301,60 @@ export class TaskUpdater {
 	}
 
 	/**
+	 * Set or update the due date for a task
+	 */
+	async setTaskDueDate(task: Task, date: string): Promise<boolean> {
+		try {
+			const file = this.app.vault.getAbstractFileByPath(task.filePath);
+			if (!file || !(file instanceof TFile)) {
+				console.error('TaskBoard: File not found:', task.filePath);
+				return false;
+			}
+
+			const content = await this.app.vault.read(file);
+			const lines = content.split('\n');
+			const lineIndex = task.lineNumber - 1;
+
+			if (lineIndex < 0 || lineIndex >= lines.length) {
+				console.error('TaskBoard: Line number out of range');
+				return false;
+			}
+
+			let line = lines[lineIndex];
+
+			// Check if line already has a due date (📅 YYYY-MM-DD)
+			const dueDatePattern = /📅\s*\d{4}-\d{2}-\d{2}/;
+			if (dueDatePattern.test(line)) {
+				// Replace existing due date
+				line = line.replace(dueDatePattern, `📅 ${date}`);
+			} else {
+				// Add due date before status tag if present, otherwise at the end
+				const statusMatch = line.match(/#status\/[\w-]+/);
+				if (statusMatch) {
+					const statusIndex = line.indexOf(statusMatch[0]);
+					line = line.slice(0, statusIndex) + `📅 ${date} ` + line.slice(statusIndex);
+				} else {
+					// Just append
+					line = line + ` 📅 ${date}`;
+				}
+			}
+
+			// Clean up any double spaces
+			line = line.replace(/\s+/g, ' ').trim();
+
+			lines[lineIndex] = line;
+
+			await this.app.vault.modify(file, lines.join('\n'));
+
+			console.log(`TaskBoard: Set task due date to ${date}`);
+			return true;
+		} catch (error) {
+			console.error('TaskBoard: Error setting task due date:', error);
+			return false;
+		}
+	}
+
+	/**
 	 * Unarchive a task - move from archive file back to todo file
 	 */
 	async unarchiveTask(task: Task, archiveFilePath: string, todoFilePath: string): Promise<boolean> {

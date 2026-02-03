@@ -3541,6 +3541,46 @@ var TaskUpdater = class {
     }
   }
   /**
+   * Set or update the due date for a task
+   */
+  async setTaskDueDate(task, date) {
+    try {
+      const file = this.app.vault.getAbstractFileByPath(task.filePath);
+      if (!file || !(file instanceof import_obsidian2.TFile)) {
+        console.error("TaskBoard: File not found:", task.filePath);
+        return false;
+      }
+      const content = await this.app.vault.read(file);
+      const lines = content.split("\n");
+      const lineIndex = task.lineNumber - 1;
+      if (lineIndex < 0 || lineIndex >= lines.length) {
+        console.error("TaskBoard: Line number out of range");
+        return false;
+      }
+      let line = lines[lineIndex];
+      const dueDatePattern = /📅\s*\d{4}-\d{2}-\d{2}/;
+      if (dueDatePattern.test(line)) {
+        line = line.replace(dueDatePattern, `\u{1F4C5} ${date}`);
+      } else {
+        const statusMatch = line.match(/#status\/[\w-]+/);
+        if (statusMatch) {
+          const statusIndex = line.indexOf(statusMatch[0]);
+          line = line.slice(0, statusIndex) + `\u{1F4C5} ${date} ` + line.slice(statusIndex);
+        } else {
+          line = line + ` \u{1F4C5} ${date}`;
+        }
+      }
+      line = line.replace(/\s+/g, " ").trim();
+      lines[lineIndex] = line;
+      await this.app.vault.modify(file, lines.join("\n"));
+      console.log(`TaskBoard: Set task due date to ${date}`);
+      return true;
+    } catch (error) {
+      console.error("TaskBoard: Error setting task due date:", error);
+      return false;
+    }
+  }
+  /**
    * Unarchive a task - move from archive file back to todo file
    */
   async unarchiveTask(task, archiveFilePath, todoFilePath) {
@@ -3785,6 +3825,8 @@ var TaskBoardView = class extends import_obsidian3.ItemView {
     this.availableTags = [];
     // Archive section state
     this.showArchive = false;
+    // Unscheduled tasks visibility
+    this.showUnscheduled = false;
     this.plugin = plugin;
     this.taskUpdater = new TaskUpdater(this.app);
   }
@@ -3958,6 +4000,30 @@ var TaskBoardView = class extends import_obsidian3.ItemView {
     if (this.availableTags.length > 0) {
       this.renderTagFilter(filterBar);
     }
+    if (this.timeFilter.preset !== "all") {
+      this.renderUnscheduledToggle(filterBar);
+    }
+  }
+  /**
+   * Render the unscheduled tasks toggle
+   */
+  renderUnscheduledToggle(container) {
+    const toggleRow = container.createEl("div", { cls: "taskboard-unscheduled-toggle-row" });
+    const toggleBtn = toggleRow.createEl("button", {
+      cls: "taskboard-unscheduled-toggle-btn" + (this.showUnscheduled ? " active" : ""),
+      text: this.showUnscheduled ? "Hide Unscheduled" : "Show Unscheduled"
+    });
+    toggleBtn.addEventListener("click", () => {
+      this.showUnscheduled = !this.showUnscheduled;
+      this.render();
+    });
+    const unscheduledCount = this.tasks.filter((t) => !t.dueDate).length;
+    if (unscheduledCount > 0) {
+      toggleRow.createEl("span", {
+        cls: "taskboard-unscheduled-count",
+        text: `(${unscheduledCount} unscheduled)`
+      });
+    }
   }
   /**
    * Render the tag filter chips
@@ -4026,9 +4092,12 @@ var TaskBoardView = class extends import_obsidian3.ItemView {
     if (this.timeFilter.preset === "all") {
       return tasks;
     }
-    return tasks.filter(
-      (task) => DateUtils.isInRange(task.dueDate, this.timeFilter.fromDate, this.timeFilter.toDate)
-    );
+    return tasks.filter((task) => {
+      if (!task.dueDate) {
+        return this.showUnscheduled;
+      }
+      return DateUtils.isInRange(task.dueDate, this.timeFilter.fromDate, this.timeFilter.toDate);
+    });
   }
   renderColumn(container, config, tasks) {
     const column = container.createEl("div", {
@@ -4156,6 +4225,35 @@ var TaskBoardView = class extends import_obsidian3.ItemView {
       const dueEl = metaEl.createEl("span", { cls: "taskboard-card-due" });
       dueEl.createEl("span", { text: "\u{1F4C5} " });
       dueEl.createEl("span", { text: this.formatDate(task.dueDate) });
+    } else {
+      const scheduleContainer = metaEl.createEl("div", { cls: "taskboard-quick-schedule" });
+      const todayBtn = scheduleContainer.createEl("button", {
+        cls: "taskboard-quick-schedule-btn",
+        text: "Today"
+      });
+      todayBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await this.scheduleTaskForToday(task);
+      });
+      const tomorrowBtn = scheduleContainer.createEl("button", {
+        cls: "taskboard-quick-schedule-btn",
+        text: "Tomorrow"
+      });
+      tomorrowBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await this.scheduleTaskForTomorrow(task);
+      });
+      const pickerBtn = scheduleContainer.createEl("button", {
+        cls: "taskboard-quick-schedule-btn taskboard-quick-schedule-picker",
+        text: "\u{1F4C5}"
+      });
+      pickerBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.openDatePickerForTask(task);
+      });
     }
     if (task.isRecurring) {
       metaEl.createEl("span", { cls: "taskboard-card-recurring", text: "\u{1F501}" });
@@ -4235,6 +4333,46 @@ var TaskBoardView = class extends import_obsidian3.ItemView {
       await leaf.openFile(file, {
         eState: { line: task.lineNumber - 1 }
       });
+    }
+  }
+  /**
+   * Schedule a task for today
+   */
+  async scheduleTaskForToday(task) {
+    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    await this.scheduleTask(task, today);
+  }
+  /**
+   * Schedule a task for tomorrow
+   */
+  async scheduleTaskForTomorrow(task) {
+    const tomorrow = /* @__PURE__ */ new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toISOString().split("T")[0];
+    await this.scheduleTask(task, dateStr);
+  }
+  /**
+   * Open date picker modal for a task
+   */
+  openDatePickerForTask(task) {
+    new ScheduleTaskModal(
+      this.app,
+      task,
+      this.taskUpdater,
+      () => this.refresh()
+    ).open();
+  }
+  /**
+   * Schedule a task with a specific date
+   */
+  async scheduleTask(task, date) {
+    new import_obsidian3.Notice("Scheduling task...");
+    const success = await this.taskUpdater.setTaskDueDate(task, date);
+    if (success) {
+      new import_obsidian3.Notice(`Task scheduled for ${this.formatDate(date)}`);
+      await this.refresh();
+    } else {
+      new import_obsidian3.Notice("Failed to schedule task");
     }
   }
   async onClose() {
@@ -4599,6 +4737,57 @@ var AddTaskModal = class extends import_obsidian3.Modal {
     } catch (error) {
       console.error("TaskBoard: Error creating task:", error);
       new import_obsidian3.Notice("Failed to create task");
+    }
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+var ScheduleTaskModal = class extends import_obsidian3.Modal {
+  constructor(app, task, taskUpdater, onScheduled) {
+    super(app);
+    this.task = task;
+    this.taskUpdater = taskUpdater;
+    this.onScheduled = onScheduled;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("taskboard-schedule-modal");
+    contentEl.createEl("h3", { text: "Schedule Task" });
+    contentEl.createEl("p", {
+      cls: "taskboard-schedule-task-text",
+      text: this.task.text
+    });
+    let selectedDate = "";
+    new import_obsidian3.Setting(contentEl).setName("Due date").setDesc("When should this task be due?").addText((text) => {
+      text.inputEl.type = "date";
+      const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      text.setValue(today);
+      selectedDate = today;
+      text.onChange((value) => {
+        selectedDate = value;
+      });
+      setTimeout(() => text.inputEl.focus(), 10);
+    });
+    new import_obsidian3.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Schedule").setCta().onClick(async () => {
+      if (!selectedDate) {
+        new import_obsidian3.Notice("Please select a date");
+        return;
+      }
+      await this.scheduleTask(selectedDate);
+      this.close();
+    }));
+  }
+  async scheduleTask(date) {
+    new import_obsidian3.Notice("Scheduling task...");
+    const success = await this.taskUpdater.setTaskDueDate(this.task, date);
+    if (success) {
+      new import_obsidian3.Notice("Task scheduled");
+      this.onScheduled();
+    } else {
+      new import_obsidian3.Notice("Failed to schedule task");
     }
   }
   onClose() {

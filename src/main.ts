@@ -112,6 +112,9 @@ class TaskBoardView extends ItemView {
 	// Archive section state
 	showArchive: boolean = false;
 
+	// Unscheduled tasks visibility
+	showUnscheduled: boolean = false;
+
 	constructor(leaf: WorkspaceLeaf, plugin: TaskBoardPlugin) {
 		super(leaf);
 		this.plugin = plugin;
@@ -359,6 +362,36 @@ class TaskBoardView extends ItemView {
 		if (this.availableTags.length > 0) {
 			this.renderTagFilter(filterBar);
 		}
+
+		// Unscheduled toggle row (only when not on 'all' preset)
+		if (this.timeFilter.preset !== 'all') {
+			this.renderUnscheduledToggle(filterBar);
+		}
+	}
+
+	/**
+	 * Render the unscheduled tasks toggle
+	 */
+	renderUnscheduledToggle(container: HTMLElement) {
+		const toggleRow = container.createEl('div', { cls: 'taskboard-unscheduled-toggle-row' });
+
+		const toggleBtn = toggleRow.createEl('button', {
+			cls: 'taskboard-unscheduled-toggle-btn' + (this.showUnscheduled ? ' active' : ''),
+			text: this.showUnscheduled ? 'Hide Unscheduled' : 'Show Unscheduled'
+		});
+		toggleBtn.addEventListener('click', () => {
+			this.showUnscheduled = !this.showUnscheduled;
+			this.render();
+		});
+
+		// Count of unscheduled tasks
+		const unscheduledCount = this.tasks.filter(t => !t.dueDate).length;
+		if (unscheduledCount > 0) {
+			toggleRow.createEl('span', {
+				cls: 'taskboard-unscheduled-count',
+				text: `(${unscheduledCount} unscheduled)`
+			});
+		}
 	}
 
 	/**
@@ -442,9 +475,15 @@ class TaskBoardView extends ItemView {
 			return tasks;
 		}
 
-		return tasks.filter(task =>
-			DateUtils.isInRange(task.dueDate, this.timeFilter.fromDate, this.timeFilter.toDate)
-		);
+		return tasks.filter(task => {
+			// Handle unscheduled tasks (no due date)
+			if (!task.dueDate) {
+				// Show unscheduled tasks only if toggle is on
+				return this.showUnscheduled;
+			}
+			// For dated tasks, check if in range
+			return DateUtils.isInRange(task.dueDate, this.timeFilter.fromDate, this.timeFilter.toDate);
+		});
 	}
 
 	renderColumn(container: HTMLElement, config: ColumnConfig, tasks: Task[]) {
@@ -613,11 +652,44 @@ class TaskBoardView extends ItemView {
 		// Metadata row
 		const metaEl = card.createEl('div', { cls: 'taskboard-card-meta' });
 
-		// Due date
+		// Due date or quick-schedule buttons
 		if (task.dueDate) {
 			const dueEl = metaEl.createEl('span', { cls: 'taskboard-card-due' });
 			dueEl.createEl('span', { text: '📅 ' });
 			dueEl.createEl('span', { text: this.formatDate(task.dueDate) });
+		} else {
+			// Quick-schedule buttons for unscheduled tasks
+			const scheduleContainer = metaEl.createEl('div', { cls: 'taskboard-quick-schedule' });
+
+			const todayBtn = scheduleContainer.createEl('button', {
+				cls: 'taskboard-quick-schedule-btn',
+				text: 'Today'
+			});
+			todayBtn.addEventListener('click', async (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				await this.scheduleTaskForToday(task);
+			});
+
+			const tomorrowBtn = scheduleContainer.createEl('button', {
+				cls: 'taskboard-quick-schedule-btn',
+				text: 'Tomorrow'
+			});
+			tomorrowBtn.addEventListener('click', async (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				await this.scheduleTaskForTomorrow(task);
+			});
+
+			const pickerBtn = scheduleContainer.createEl('button', {
+				cls: 'taskboard-quick-schedule-btn taskboard-quick-schedule-picker',
+				text: '📅'
+			});
+			pickerBtn.addEventListener('click', async (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this.openDatePickerForTask(task);
+			});
 		}
 
 		// Recurrence indicator
@@ -711,6 +783,50 @@ class TaskBoardView extends ItemView {
 			await leaf.openFile(file as any, {
 				eState: { line: task.lineNumber - 1 }
 			});
+		}
+	}
+
+	/**
+	 * Schedule a task for today
+	 */
+	async scheduleTaskForToday(task: Task) {
+		const today = new Date().toISOString().split('T')[0];
+		await this.scheduleTask(task, today);
+	}
+
+	/**
+	 * Schedule a task for tomorrow
+	 */
+	async scheduleTaskForTomorrow(task: Task) {
+		const tomorrow = new Date();
+		tomorrow.setDate(tomorrow.getDate() + 1);
+		const dateStr = tomorrow.toISOString().split('T')[0];
+		await this.scheduleTask(task, dateStr);
+	}
+
+	/**
+	 * Open date picker modal for a task
+	 */
+	openDatePickerForTask(task: Task) {
+		new ScheduleTaskModal(
+			this.app,
+			task,
+			this.taskUpdater,
+			() => this.refresh()
+		).open();
+	}
+
+	/**
+	 * Schedule a task with a specific date
+	 */
+	async scheduleTask(task: Task, date: string) {
+		new Notice('Scheduling task...');
+		const success = await this.taskUpdater.setTaskDueDate(task, date);
+		if (success) {
+			new Notice(`Task scheduled for ${this.formatDate(date)}`);
+			await this.refresh();
+		} else {
+			new Notice('Failed to schedule task');
 		}
 	}
 
@@ -1278,6 +1394,91 @@ class AddTaskModal extends Modal {
 		} catch (error) {
 			console.error('TaskBoard: Error creating task:', error);
 			new Notice('Failed to create task');
+		}
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+}
+
+// Modal for scheduling a task with a date picker
+class ScheduleTaskModal extends Modal {
+	task: Task;
+	taskUpdater: TaskUpdater;
+	onScheduled: () => void;
+
+	constructor(
+		app: App,
+		task: Task,
+		taskUpdater: TaskUpdater,
+		onScheduled: () => void
+	) {
+		super(app);
+		this.task = task;
+		this.taskUpdater = taskUpdater;
+		this.onScheduled = onScheduled;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('taskboard-schedule-modal');
+
+		contentEl.createEl('h3', { text: 'Schedule Task' });
+
+		// Show task text
+		contentEl.createEl('p', {
+			cls: 'taskboard-schedule-task-text',
+			text: this.task.text
+		});
+
+		let selectedDate = '';
+
+		// Date input
+		new Setting(contentEl)
+			.setName('Due date')
+			.setDesc('When should this task be due?')
+			.addText(text => {
+				text.inputEl.type = 'date';
+				// Default to today
+				const today = new Date().toISOString().split('T')[0];
+				text.setValue(today);
+				selectedDate = today;
+				text.onChange(value => {
+					selectedDate = value;
+				});
+				// Focus the input
+				setTimeout(() => text.inputEl.focus(), 10);
+			});
+
+		// Buttons
+		new Setting(contentEl)
+			.addButton(btn => btn
+				.setButtonText('Cancel')
+				.onClick(() => this.close()))
+			.addButton(btn => btn
+				.setButtonText('Schedule')
+				.setCta()
+				.onClick(async () => {
+					if (!selectedDate) {
+						new Notice('Please select a date');
+						return;
+					}
+					await this.scheduleTask(selectedDate);
+					this.close();
+				}));
+	}
+
+	async scheduleTask(date: string) {
+		new Notice('Scheduling task...');
+		const success = await this.taskUpdater.setTaskDueDate(this.task, date);
+		if (success) {
+			new Notice('Task scheduled');
+			this.onScheduled();
+		} else {
+			new Notice('Failed to schedule task');
 		}
 	}
 
