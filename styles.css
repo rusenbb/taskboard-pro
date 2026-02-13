@@ -19,14 +19,42 @@
 	justify-content: space-between;
 }
 
-.taskboard-header h2 {
-	margin: 0;
+.taskboard-header-left {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
 }
 
-.taskboard-header p {
-	margin: 4px 0 0 0;
+.taskboard-header-title {
+	font-weight: 700;
+	font-size: 1.1em;
+}
+
+.taskboard-header-count {
 	color: var(--text-muted);
-	font-size: 0.9em;
+	font-size: 0.85em;
+}
+
+.taskboard-sort-btn {
+	padding: 4px 12px;
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	font-size: 0.85em;
+	transition: all 0.15s ease;
+}
+
+.taskboard-sort-btn:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+}
+
+.taskboard-sort-btn.active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
 }
 
 .taskboard-refresh-btn {
@@ -66,7 +94,7 @@
 	font-weight: 600;
 	margin-bottom: 12px;
 	padding-bottom: 8px;
-	border-bottom: 2px solid var(--interactive-accent);
+	border-bottom: 2px solid var(--col-accent, var(--interactive-accent));
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -92,7 +120,7 @@
 	padding: 10px 12px;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 	cursor: grab;
-	border-left: 3px solid var(--interactive-accent);
+	border-left: 3px solid var(--col-accent, var(--interactive-accent));
 	transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
@@ -123,6 +151,22 @@
 	align-items: flex-start;
 	gap: 8px;
 	margin-bottom: 8px;
+}
+
+.taskboard-card-checkbox {
+	cursor: pointer;
+	width: 16px;
+	height: 16px;
+	margin: 2px 0 0 0;
+	flex-shrink: 0;
+	accent-color: var(--interactive-accent);
+}
+
+body.is-mobile .taskboard-card-checkbox {
+	width: 20px;
+	height: 20px;
+	min-width: 44px;
+	min-height: 44px;
 }
 
 .taskboard-card-text {
@@ -173,6 +217,20 @@
 	background: var(--background-secondary);
 	padding: 2px 6px;
 	border-radius: 4px;
+}
+
+.taskboard-card-due-overdue {
+	color: var(--text-error);
+	font-weight: 600;
+}
+
+.taskboard-card-due-today {
+	color: var(--text-warning, var(--interactive-accent));
+	font-weight: 600;
+}
+
+.taskboard-card-due-soon {
+	color: var(--text-warning, var(--text-accent));
 }
 
 .taskboard-card-recurring {
@@ -368,6 +426,16 @@
 	padding: 4px 8px;
 	border-radius: 4px;
 	white-space: nowrap;
+}
+
+.taskboard-settings-column-color {
+	width: 32px;
+	height: 28px;
+	padding: 1px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	cursor: pointer;
+	background: none;
 }
 
 .taskboard-settings-edit-id-btn,
@@ -626,6 +694,47 @@
 }
 
 /* ========================================
+   Empty State
+   ======================================== */
+
+.taskboard-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	text-align: center;
+	color: var(--text-muted);
+	flex: 1;
+}
+
+.taskboard-empty-state h3 {
+	margin: 0 0 8px 0;
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
+.taskboard-empty-state p {
+	margin: 0;
+	font-size: 0.9em;
+	max-width: 360px;
+	line-height: 1.5;
+}
+
+/* ========================================
+   Edit Task Modal
+   ======================================== */
+
+.taskboard-edit-task-modal {
+	padding: 10px;
+}
+
+.taskboard-edit-task-modal h3 {
+	margin-top: 0;
+	margin-bottom: 16px;
+}
+
+/* ========================================
    Unscheduled Toggle
    ======================================== */
 
@@ -752,8 +861,8 @@ body.is-mobile .taskboard-header-row {
 	gap: 8px;
 }
 
-body.is-mobile .taskboard-header h2 {
-	font-size: 1.2em;
+body.is-mobile .taskboard-header-title {
+	font-size: 1em;
 }
 
 /* Stack columns vertically on phones */

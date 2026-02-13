@@ -181,6 +181,19 @@ export class TaskBoardSettingTab extends PluginSettingTab {
 				text: `#status/${col.id}`
 			});
 
+			const colorInput = row.createEl('input', {
+				type: 'color',
+				cls: 'taskboard-settings-column-color',
+				value: col.color || '#7b68ee',
+				attr: { title: 'Column accent color' }
+			});
+			colorInput.addEventListener('change', async (e) => {
+				const target = e.target as HTMLInputElement;
+				col.color = target.value;
+				await this.plugin.saveSettings();
+				await this.plugin.refreshBoard();
+			});
+
 			const editIdBtn = row.createEl('button', {
 				text: 'Edit ID',
 				cls: 'taskboard-settings-edit-id-btn',

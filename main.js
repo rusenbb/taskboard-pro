@@ -25,7 +25,7 @@ __export(main_exports, {
   default: () => TaskBoardPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 
 // src/types.ts
 var COLUMN_ID_REGEX = /^[\w-]+$/;
@@ -68,7 +68,7 @@ var DEFAULT_SETTINGS = {
 var VIEW_TYPE_TASKBOARD = "taskboard-view";
 
 // src/views/TaskBoardView.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 
 // src/services/TaskScanner.ts
 var import_obsidian = require("obsidian");
@@ -3421,6 +3421,41 @@ var TaskUpdater = class {
     }
   }
   /**
+   * Update the text and optionally the due date of a task.
+   * Preserves all other metadata (status tags, recurrence, completion markers).
+   */
+  async updateTaskText(task, newText, newDueDate) {
+    return this.modifyTaskLine(task, (line) => {
+      const prefixMatch = line.match(/^(\s*[-*+]\s*\[[ xX]\]\s*)/);
+      if (!prefixMatch)
+        return line;
+      const prefix = prefixMatch[1];
+      const afterPrefix = line.slice(prefix.length);
+      const metaMatch = afterPrefix.search(/[📅⏳✅🔁#]/);
+      const meta = metaMatch !== -1 ? afterPrefix.slice(metaMatch) : "";
+      let updatedMeta = meta;
+      const duePat = /📅\s*\d{4}-\d{2}-\d{2}/;
+      if (newDueDate) {
+        if (duePat.test(updatedMeta)) {
+          updatedMeta = updatedMeta.replace(duePat, `\u{1F4C5} ${newDueDate}`);
+        } else {
+          const statusIdx = updatedMeta.search(/#status\//);
+          if (statusIdx > 0) {
+            updatedMeta = updatedMeta.slice(0, statusIdx) + `\u{1F4C5} ${newDueDate} ` + updatedMeta.slice(statusIdx);
+          } else if (statusIdx === 0) {
+            updatedMeta = `\u{1F4C5} ${newDueDate} ` + updatedMeta;
+          } else {
+            updatedMeta = `\u{1F4C5} ${newDueDate}` + (updatedMeta ? " " + updatedMeta : "");
+          }
+        }
+      } else {
+        updatedMeta = updatedMeta.replace(duePat, "");
+      }
+      const parts = [prefix + newText, updatedMeta].filter((p) => p.trim());
+      return parts.join(" ").replace(/\s+/g, " ").trim();
+    });
+  }
+  /**
    * Archive a task — adds #archived tag so it disappears from board
    * (Used when three-file system is disabled)
    */
@@ -3817,8 +3852,63 @@ var ScheduleTaskModal = class extends import_obsidian4.Modal {
   }
 };
 
+// src/modals/EditTaskModal.ts
+var import_obsidian5 = require("obsidian");
+var EditTaskModal = class extends import_obsidian5.Modal {
+  constructor(app, task, taskUpdater, onSaved) {
+    super(app);
+    this.task = task;
+    this.taskUpdater = taskUpdater;
+    this.onSaved = onSaved;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("taskboard-edit-task-modal");
+    contentEl.createEl("h3", { text: "Edit Task" });
+    let newText = this.task.text;
+    let newDueDate = this.task.dueDate || "";
+    new import_obsidian5.Setting(contentEl).setName("Task").addText((text) => {
+      text.setValue(this.task.text).setPlaceholder("Task description").onChange((value) => {
+        newText = value;
+      });
+      text.inputEl.style.width = "100%";
+      setTimeout(() => text.inputEl.focus(), 10);
+    });
+    new import_obsidian5.Setting(contentEl).setName("Due date").addText((text) => {
+      text.inputEl.type = "date";
+      text.setValue(newDueDate);
+      text.onChange((value) => {
+        newDueDate = value;
+      });
+    });
+    new import_obsidian5.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Save").setCta().onClick(async () => {
+      if (!newText.trim()) {
+        new import_obsidian5.Notice("Task description cannot be empty");
+        return;
+      }
+      await this.saveTask(newText.trim(), newDueDate || null);
+      this.close();
+    }));
+  }
+  async saveTask(text, dueDate) {
+    new import_obsidian5.Notice("Saving task...");
+    const success = await this.taskUpdater.updateTaskText(this.task, text, dueDate);
+    if (success) {
+      new import_obsidian5.Notice("Task updated");
+      this.onSaved();
+    } else {
+      new import_obsidian5.Notice("Failed to update task");
+    }
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+
 // src/views/TaskBoardView.ts
-var TaskBoardView = class extends import_obsidian5.ItemView {
+var TaskBoardView = class extends import_obsidian6.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.tasks = [];
@@ -3833,12 +3923,14 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
     this.showArchive = false;
     // Unscheduled tasks visibility
     this.showUnscheduled = false;
+    // Sort mode for columns
+    this.sortMode = "default";
     // Collapsible filter bar (defaults to collapsed on mobile)
-    this.filterBarCollapsed = import_obsidian5.Platform.isMobile;
+    this.filterBarCollapsed = import_obsidian6.Platform.isMobile;
     // When true, vault events skip triggering a refresh (because we just did one)
     this.suppressAutoRefresh = false;
     // Debounced auto-refresh (1 second)
-    this.debouncedRefresh = (0, import_obsidian5.debounce)(() => {
+    this.debouncedRefresh = (0, import_obsidian6.debounce)(() => {
       if (!this.suppressAutoRefresh) {
         this.refresh();
       }
@@ -3900,12 +3992,28 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
     );
   }
   render() {
+    var _a;
     const container = this.containerEl.children[1];
+    const prevColumnsEl = container.querySelector(".taskboard-columns");
+    const savedScrollLeft = (_a = prevColumnsEl == null ? void 0 : prevColumnsEl.scrollLeft) != null ? _a : 0;
+    const savedColumnScrolls = /* @__PURE__ */ new Map();
+    container.querySelectorAll(".taskboard-cards").forEach((el) => {
+      const colId = el.getAttribute("data-column-id");
+      if (colId)
+        savedColumnScrolls.set(colId, el.scrollTop);
+    });
     container.empty();
     const board = container.createEl("div", { cls: "taskboard-container" });
     const header = board.createEl("div", { cls: "taskboard-header" });
     const headerRow = header.createEl("div", { cls: "taskboard-header-row" });
-    headerRow.createEl("h2", { text: "TaskBoard Pro" });
+    const headerLeft = headerRow.createEl("div", { cls: "taskboard-header-left" });
+    headerLeft.createEl("span", { cls: "taskboard-header-title", text: "TaskBoard" });
+    let filteredTasks = this.applyTimeFilter(this.tasks);
+    filteredTasks = this.applyTagFilter(filteredTasks);
+    headerLeft.createEl("span", {
+      cls: "taskboard-header-count",
+      text: `${filteredTasks.length}/${this.tasks.length}`
+    });
     const headerButtons = headerRow.createEl("div", { cls: "taskboard-header-buttons" });
     if (this.plugin.settings.useThreeFileSystem) {
       const archiveBtn = headerButtons.createEl("button", {
@@ -3917,15 +4025,37 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
         await this.refresh();
       });
     }
+    const sortLabels = {
+      "default": "Sort",
+      "due-asc": "Sort: Due \u2191",
+      "due-desc": "Sort: Due \u2193",
+      "alpha": "Sort: A-Z"
+    };
+    const sortBtn = headerButtons.createEl("button", {
+      cls: "taskboard-sort-btn" + (this.sortMode !== "default" ? " active" : ""),
+      text: sortLabels[this.sortMode]
+    });
+    sortBtn.addEventListener("click", () => this.cycleSortMode());
     const refreshBtn = headerButtons.createEl("button", {
       cls: "taskboard-refresh-btn",
       text: "\u21BB Refresh"
     });
     refreshBtn.addEventListener("click", () => this.refresh());
-    let filteredTasks = this.applyTimeFilter(this.tasks);
-    filteredTasks = this.applyTagFilter(filteredTasks);
-    header.createEl("p", { text: `${filteredTasks.length} of ${this.tasks.length} tasks` });
     this.renderFilterBar(board, filteredTasks.length);
+    if (this.tasks.length === 0) {
+      const empty2 = board.createEl("div", { cls: "taskboard-empty-state" });
+      empty2.createEl("h3", { text: "No tasks found" });
+      if (this.plugin.settings.useThreeFileSystem) {
+        empty2.createEl("p", {
+          text: `Add tasks to ${this.plugin.settings.todoFile} or click + on a column header.`
+        });
+      } else {
+        empty2.createEl("p", {
+          text: "Create a task with a checkbox (- [ ]) and a #status/todo tag in any markdown file."
+        });
+      }
+      return;
+    }
     const columnsContainer = board.createEl("div", { cls: "taskboard-columns" });
     for (const col of this.plugin.settings.columns) {
       this.renderColumn(columnsContainer, col, filteredTasks);
@@ -3935,7 +4065,16 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
     }
     const status = board.createEl("div", { cls: "taskboard-status" });
     status.createEl("span", {
-      text: import_obsidian5.Platform.isMobile ? "Tap a card to move it" : "Drag & drop to change status"
+      text: import_obsidian6.Platform.isMobile ? "Tap a card to move it" : "Drag & drop or right-click for options"
+    });
+    const newColumnsEl = container.querySelector(".taskboard-columns");
+    if (newColumnsEl)
+      newColumnsEl.scrollLeft = savedScrollLeft;
+    container.querySelectorAll(".taskboard-cards").forEach((el) => {
+      const colId = el.getAttribute("data-column-id");
+      if (colId && savedColumnScrolls.has(colId)) {
+        el.scrollTop = savedColumnScrolls.get(colId);
+      }
     });
   }
   renderArchiveSection(container) {
@@ -3970,18 +4109,16 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
   }
   renderFilterBar(container, taskCount) {
     const filterBar = container.createEl("div", { cls: "taskboard-filter-bar" });
-    if (import_obsidian5.Platform.isMobile) {
-      const toggleBtn = filterBar.createEl("button", {
-        cls: "taskboard-filter-toggle-btn",
-        text: this.filterBarCollapsed ? `Filters (${this.timeFilter.preset})  \u25BC` : `Filters  \u25B2`
-      });
-      toggleBtn.addEventListener("click", () => {
-        this.filterBarCollapsed = !this.filterBarCollapsed;
-        this.render();
-      });
-      if (this.filterBarCollapsed) {
-        return;
-      }
+    const toggleBtn = filterBar.createEl("button", {
+      cls: "taskboard-filter-toggle-btn",
+      text: this.filterBarCollapsed ? `Filters (${this.timeFilter.preset})  \u25BC` : `Filters  \u25B2`
+    });
+    toggleBtn.addEventListener("click", () => {
+      this.filterBarCollapsed = !this.filterBarCollapsed;
+      this.render();
+    });
+    if (this.filterBarCollapsed) {
+      return;
     }
     const filterContent = filterBar.createEl("div", { cls: "taskboard-filter-content" });
     const presetsRow = filterContent.createEl("div", { cls: "taskboard-filter-presets" });
@@ -4122,6 +4259,9 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
       cls: "taskboard-column",
       attr: { "data-column-id": config.id }
     });
+    if (config.color) {
+      column.style.setProperty("--col-accent", config.color);
+    }
     const headerEl = column.createEl("div", { cls: "taskboard-column-header" });
     const columnTasks = TaskScanner.filterTasksByStatus(
       tasks,
@@ -4154,16 +4294,17 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
       cls: "taskboard-cards",
       attr: { "data-column-id": config.id }
     });
-    if (!import_obsidian5.Platform.isMobile) {
+    if (!import_obsidian6.Platform.isMobile) {
       this.setupDropZone(cardContainer, config);
     }
-    if (columnTasks.length === 0) {
+    const sortedTasks = this.sortTasks(columnTasks);
+    if (sortedTasks.length === 0) {
       cardContainer.createEl("div", {
         cls: "taskboard-card-empty",
-        text: import_obsidian5.Platform.isMobile ? "No tasks" : "Drop tasks here"
+        text: import_obsidian6.Platform.isMobile ? "No tasks" : "Drop tasks here"
       });
     } else {
-      for (const task of columnTasks) {
+      for (const task of sortedTasks) {
         this.renderCard(cardContainer, task, config.id === "done");
       }
     }
@@ -4188,17 +4329,17 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
         this.draggedTask = null;
         return;
       }
-      new import_obsidian5.Notice(`Moving task to ${config.name}...`);
+      new import_obsidian6.Notice(`Moving task to ${config.name}...`);
       const success = await this.taskUpdater.moveTask(task, newStatus, isDoneColumn);
       if (success) {
         if (isDoneColumn && task.isRecurring) {
-          new import_obsidian5.Notice("Recurring task completed - new instance created!");
+          new import_obsidian6.Notice("Recurring task completed - new instance created!");
         } else {
-          new import_obsidian5.Notice(`Task moved to ${config.name}`);
+          new import_obsidian6.Notice(`Task moved to ${config.name}`);
         }
         await this.refresh();
       } else {
-        new import_obsidian5.Notice("Failed to move task");
+        new import_obsidian6.Notice("Failed to move task");
       }
       this.draggedTask = null;
     });
@@ -4207,28 +4348,32 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
    * Show a context menu for moving a task to another column (mobile replacement for drag).
    */
   showMoveMenu(e, task) {
-    const menu = new import_obsidian5.Menu();
+    const menu = new import_obsidian6.Menu();
     for (const col of this.plugin.settings.columns) {
       if (col.id === task.status)
         continue;
       menu.addItem((item) => {
         item.setTitle(`Move to ${col.name}`).onClick(async () => {
           const isDoneColumn = col.id === "done";
-          new import_obsidian5.Notice(`Moving task to ${col.name}...`);
+          new import_obsidian6.Notice(`Moving task to ${col.name}...`);
           const success = await this.taskUpdater.moveTask(task, col.id, isDoneColumn);
           if (success) {
             if (isDoneColumn && task.isRecurring) {
-              new import_obsidian5.Notice("Recurring task completed - new instance created!");
+              new import_obsidian6.Notice("Recurring task completed - new instance created!");
             } else {
-              new import_obsidian5.Notice(`Task moved to ${col.name}`);
+              new import_obsidian6.Notice(`Task moved to ${col.name}`);
             }
             await this.refresh();
           } else {
-            new import_obsidian5.Notice("Failed to move task");
+            new import_obsidian6.Notice("Failed to move task");
           }
         });
       });
     }
+    menu.addSeparator();
+    menu.addItem((item) => item.setTitle("Schedule...").onClick(() => this.openDatePickerForTask(task)));
+    menu.addItem((item) => item.setTitle("Edit...").onClick(() => this.openEditModal(task)));
+    menu.addItem((item) => item.setTitle("Open in file").onClick(() => this.openTaskFile(task)));
     if (e instanceof MouseEvent) {
       menu.showAtMouseEvent(e);
     } else {
@@ -4237,7 +4382,7 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
     }
   }
   renderCard(container, task, showArchive = false) {
-    const isMobile = import_obsidian5.Platform.isMobile;
+    const isMobile = import_obsidian6.Platform.isMobile;
     const card = container.createEl("div", {
       cls: "taskboard-card" + (task.completed ? " taskboard-card-completed" : ""),
       attr: {
@@ -4248,11 +4393,42 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
     });
     if (isMobile) {
       card.addEventListener("click", (e) => {
-        if (e.target.closest("button, a"))
+        if (e.target.closest("button, a, input"))
           return;
         this.showMoveMenu(e, task);
       });
     } else {
+      card.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        const menu = new import_obsidian6.Menu();
+        for (const col of this.plugin.settings.columns) {
+          if (col.id === task.status)
+            continue;
+          menu.addItem((item) => item.setTitle(`Move to ${col.name}`).onClick(async () => {
+            const isDoneColumn = col.id === "done";
+            new import_obsidian6.Notice(`Moving task to ${col.name}...`);
+            const success = await this.taskUpdater.moveTask(task, col.id, isDoneColumn);
+            if (success) {
+              if (isDoneColumn && task.isRecurring) {
+                new import_obsidian6.Notice("Recurring task completed - new instance created!");
+              } else {
+                new import_obsidian6.Notice(`Task moved to ${col.name}`);
+              }
+              await this.refresh();
+            } else {
+              new import_obsidian6.Notice("Failed to move task");
+            }
+          }));
+        }
+        menu.addSeparator();
+        menu.addItem((item) => item.setTitle("Schedule...").onClick(() => this.openDatePickerForTask(task)));
+        if (showArchive) {
+          menu.addItem((item) => item.setTitle("Archive").onClick(async () => this.archiveTask(task)));
+        }
+        menu.addItem((item) => item.setTitle("Edit...").onClick(() => this.openEditModal(task)));
+        menu.addItem((item) => item.setTitle("Open in file").onClick(() => this.openTaskFile(task)));
+        menu.showAtMouseEvent(e);
+      });
       card.addEventListener("dragstart", (e) => {
         this.draggedTask = task;
         card.addClass("taskboard-card-dragging");
@@ -4270,7 +4446,25 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
       });
     }
     const headerEl = card.createEl("div", { cls: "taskboard-card-header" });
-    headerEl.createEl("div", { cls: "taskboard-card-text", text: task.text });
+    const checkbox = headerEl.createEl("input", {
+      type: "checkbox",
+      cls: "taskboard-card-checkbox"
+    });
+    if (task.completed) {
+      checkbox.checked = true;
+    }
+    checkbox.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const newState = e.target.checked;
+      await this.taskUpdater.toggleTaskCompletion(task, newState);
+      await this.refresh();
+    });
+    const textEl = headerEl.createEl("div", { cls: "taskboard-card-text", text: task.text });
+    textEl.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.openEditModal(task);
+    });
     if (showArchive) {
       const archiveBtn = headerEl.createEl("button", {
         cls: "taskboard-archive-btn",
@@ -4286,6 +4480,16 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
     const metaEl = card.createEl("div", { cls: "taskboard-card-meta" });
     if (task.dueDate) {
       const dueEl = metaEl.createEl("span", { cls: "taskboard-card-due" });
+      const today = /* @__PURE__ */ new Date();
+      today.setHours(0, 0, 0, 0);
+      const due = /* @__PURE__ */ new Date(task.dueDate + "T00:00:00");
+      const diffDays = Math.floor((due.getTime() - today.getTime()) / 864e5);
+      if (diffDays < 0)
+        dueEl.addClass("taskboard-card-due-overdue");
+      else if (diffDays === 0)
+        dueEl.addClass("taskboard-card-due-today");
+      else if (diffDays <= 2)
+        dueEl.addClass("taskboard-card-due-soon");
       dueEl.createEl("span", { text: "\u{1F4C5} " });
       dueEl.createEl("span", { text: this.formatDate(task.dueDate) });
     } else {
@@ -4324,19 +4528,21 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
     if (task.completed) {
       metaEl.createEl("span", { cls: "taskboard-card-done", text: "\u2705" });
     }
-    const sourceEl = card.createEl("div", { cls: "taskboard-card-source" });
-    const link = sourceEl.createEl("a", {
-      text: this.getFileName(task.filePath),
-      cls: "taskboard-card-link"
-    });
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.openTaskFile(task);
-    });
+    if (!this.plugin.settings.useThreeFileSystem) {
+      const sourceEl = card.createEl("div", { cls: "taskboard-card-source" });
+      const link = sourceEl.createEl("a", {
+        text: this.getFileName(task.filePath),
+        cls: "taskboard-card-link"
+      });
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.openTaskFile(task);
+      });
+    }
   }
   async archiveTask(task) {
-    new import_obsidian5.Notice("Archiving task...");
+    new import_obsidian6.Notice("Archiving task...");
     let success;
     if (this.plugin.settings.useThreeFileSystem) {
       success = await this.taskUpdater.archiveTaskToFile(
@@ -4347,24 +4553,24 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
       success = await this.taskUpdater.archiveTask(task);
     }
     if (success) {
-      new import_obsidian5.Notice("Task archived");
+      new import_obsidian6.Notice("Task archived");
       await this.refresh();
     } else {
-      new import_obsidian5.Notice("Failed to archive task");
+      new import_obsidian6.Notice("Failed to archive task");
     }
   }
   async unarchiveTask(task) {
-    new import_obsidian5.Notice("Restoring task...");
+    new import_obsidian6.Notice("Restoring task...");
     const success = await this.taskUpdater.unarchiveTask(
       task,
       this.plugin.settings.archiveFile,
       this.plugin.settings.todoFile
     );
     if (success) {
-      new import_obsidian5.Notice("Task restored to To Do");
+      new import_obsidian6.Notice("Task restored to To Do");
       await this.refresh();
     } else {
-      new import_obsidian5.Notice("Failed to restore task");
+      new import_obsidian6.Notice("Failed to restore task");
     }
   }
   formatDate(dateStr) {
@@ -4416,14 +4622,50 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
       () => this.refresh()
     ).open();
   }
+  toggleFilterBar() {
+    this.filterBarCollapsed = !this.filterBarCollapsed;
+    this.render();
+  }
+  toggleArchive() {
+    if (!this.plugin.settings.useThreeFileSystem)
+      return;
+    this.showArchive = !this.showArchive;
+    this.refresh();
+  }
+  cycleSortMode() {
+    const modes = ["default", "due-asc", "due-desc", "alpha"];
+    const currentIdx = modes.indexOf(this.sortMode);
+    this.sortMode = modes[(currentIdx + 1) % modes.length];
+    this.render();
+  }
+  sortTasks(tasks) {
+    switch (this.sortMode) {
+      case "due-asc":
+        return [...tasks].sort((a, b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
+      case "due-desc":
+        return [...tasks].sort((a, b) => (b.dueDate || "0000-00-00").localeCompare(a.dueDate || "0000-00-00"));
+      case "alpha":
+        return [...tasks].sort((a, b) => a.text.localeCompare(b.text));
+      default:
+        return tasks;
+    }
+  }
+  openEditModal(task) {
+    new EditTaskModal(
+      this.app,
+      task,
+      this.taskUpdater,
+      () => this.refresh()
+    ).open();
+  }
   async scheduleTask(task, date) {
-    new import_obsidian5.Notice("Scheduling task...");
+    new import_obsidian6.Notice("Scheduling task...");
     const success = await this.taskUpdater.setTaskDueDate(task, date);
     if (success) {
-      new import_obsidian5.Notice(`Task scheduled for ${this.formatDate(date)}`);
+      new import_obsidian6.Notice(`Task scheduled for ${this.formatDate(date)}`);
       await this.refresh();
     } else {
-      new import_obsidian5.Notice("Failed to schedule task");
+      new import_obsidian6.Notice("Failed to schedule task");
     }
   }
   async onClose() {
@@ -4431,11 +4673,11 @@ var TaskBoardView = class extends import_obsidian5.ItemView {
 };
 
 // src/settings/TaskBoardSettingTab.ts
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 
 // src/modals/EditColumnIdModal.ts
-var import_obsidian6 = require("obsidian");
-var EditColumnIdModal = class extends import_obsidian6.Modal {
+var import_obsidian7 = require("obsidian");
+var EditColumnIdModal = class extends import_obsidian7.Modal {
   constructor(app, currentId, existingIds, onSave) {
     super(app);
     this.currentId = currentId;
@@ -4452,7 +4694,7 @@ var EditColumnIdModal = class extends import_obsidian6.Modal {
     });
     let newIdValue = this.currentId;
     let errorEl;
-    new import_obsidian6.Setting(contentEl).setName("Status ID").setDesc("Alphanumeric, underscores, and hyphens only").addText((text) => {
+    new import_obsidian7.Setting(contentEl).setName("Status ID").setDesc("Alphanumeric, underscores, and hyphens only").addText((text) => {
       text.setValue(this.currentId).setPlaceholder("e.g., in-review").onChange((value) => {
         newIdValue = value.trim().toLowerCase();
         const error = validateColumnId(newIdValue, this.existingIds, this.currentId);
@@ -4466,10 +4708,10 @@ var EditColumnIdModal = class extends import_obsidian6.Modal {
     });
     errorEl = contentEl.createEl("p", { cls: "taskboard-settings-error" });
     errorEl.hide();
-    new import_obsidian6.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Save").setCta().onClick(() => {
+    new import_obsidian7.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Save").setCta().onClick(() => {
       const error = validateColumnId(newIdValue, this.existingIds, this.currentId);
       if (error) {
-        new import_obsidian6.Notice(error);
+        new import_obsidian7.Notice(error);
         return;
       }
       this.onSave(newIdValue);
@@ -4483,8 +4725,8 @@ var EditColumnIdModal = class extends import_obsidian6.Modal {
 };
 
 // src/modals/ConfirmDeleteModal.ts
-var import_obsidian7 = require("obsidian");
-var ConfirmDeleteModal = class extends import_obsidian7.Modal {
+var import_obsidian8 = require("obsidian");
+var ConfirmDeleteModal = class extends import_obsidian8.Modal {
   constructor(app, columnName, columnId, onConfirm) {
     super(app);
     this.columnName = columnName;
@@ -4502,7 +4744,7 @@ var ConfirmDeleteModal = class extends import_obsidian7.Modal {
       text: `Tasks with #status/${this.columnId} will remain in your files but won't appear on the board.`,
       cls: "mod-warning"
     });
-    new import_obsidian7.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Delete").setWarning().onClick(() => {
+    new import_obsidian8.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Delete").setWarning().onClick(() => {
       this.onConfirm();
       this.close();
     }));
@@ -4514,7 +4756,7 @@ var ConfirmDeleteModal = class extends import_obsidian7.Modal {
 };
 
 // src/settings/TaskBoardSettingTab.ts
-var TaskBoardSettingTab = class extends import_obsidian8.PluginSettingTab {
+var TaskBoardSettingTab = class extends import_obsidian9.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -4530,28 +4772,28 @@ var TaskBoardSettingTab = class extends import_obsidian8.PluginSettingTab {
     });
     const columnListEl = containerEl.createEl("div", { cls: "taskboard-settings-columns" });
     this.renderColumnList(columnListEl);
-    new import_obsidian8.Setting(containerEl).addButton((btn) => btn.setButtonText("+ Add Column").setCta().onClick(() => this.addColumn()));
+    new import_obsidian9.Setting(containerEl).addButton((btn) => btn.setButtonText("+ Add Column").setCta().onClick(() => this.addColumn()));
     containerEl.createEl("h3", { text: "Task Files" });
-    new import_obsidian8.Setting(containerEl).setName("Use three-file system").setDesc("Instead of scanning the vault, use dedicated files for recurring tasks, to-do items, and archive.").addToggle((toggle) => toggle.setValue(this.plugin.settings.useThreeFileSystem).onChange(async (value) => {
+    new import_obsidian9.Setting(containerEl).setName("Use three-file system").setDesc("Instead of scanning the vault, use dedicated files for recurring tasks, to-do items, and archive.").addToggle((toggle) => toggle.setValue(this.plugin.settings.useThreeFileSystem).onChange(async (value) => {
       this.plugin.settings.useThreeFileSystem = value;
       await this.plugin.saveSettings();
       await this.plugin.refreshBoard();
       this.display();
     }));
     if (this.plugin.settings.useThreeFileSystem) {
-      new import_obsidian8.Setting(containerEl).setName("Recurring tasks file").setDesc("File containing recurring task templates").addText((text) => text.setPlaceholder("Tasks/recurring.md").setValue(this.plugin.settings.recurringTasksFile).onChange(async (value) => {
+      new import_obsidian9.Setting(containerEl).setName("Recurring tasks file").setDesc("File containing recurring task templates").addText((text) => text.setPlaceholder("Tasks/recurring.md").setValue(this.plugin.settings.recurringTasksFile).onChange(async (value) => {
         this.plugin.settings.recurringTasksFile = this.normalizePath(value);
         await this.plugin.saveSettings();
       }));
-      new import_obsidian8.Setting(containerEl).setName("To-do file").setDesc("File for active tasks").addText((text) => text.setPlaceholder("Tasks/todo.md").setValue(this.plugin.settings.todoFile).onChange(async (value) => {
+      new import_obsidian9.Setting(containerEl).setName("To-do file").setDesc("File for active tasks").addText((text) => text.setPlaceholder("Tasks/todo.md").setValue(this.plugin.settings.todoFile).onChange(async (value) => {
         this.plugin.settings.todoFile = this.normalizePath(value);
         await this.plugin.saveSettings();
       }));
-      new import_obsidian8.Setting(containerEl).setName("Archive file").setDesc("File for archived/completed tasks").addText((text) => text.setPlaceholder("Tasks/archive.md").setValue(this.plugin.settings.archiveFile).onChange(async (value) => {
+      new import_obsidian9.Setting(containerEl).setName("Archive file").setDesc("File for archived/completed tasks").addText((text) => text.setPlaceholder("Tasks/archive.md").setValue(this.plugin.settings.archiveFile).onChange(async (value) => {
         this.plugin.settings.archiveFile = this.normalizePath(value);
         await this.plugin.saveSettings();
       }));
-      new import_obsidian8.Setting(containerEl).setName("Create missing files").setDesc("Create the configured files if they don't exist").addButton((btn) => btn.setButtonText("Create Files").onClick(async () => {
+      new import_obsidian9.Setting(containerEl).setName("Create missing files").setDesc("Create the configured files if they don't exist").addButton((btn) => btn.setButtonText("Create Files").onClick(async () => {
         await this.createConfiguredFiles();
       }));
     }
@@ -4560,16 +4802,16 @@ var TaskBoardSettingTab = class extends import_obsidian8.PluginSettingTab {
       text: this.plugin.settings.useThreeFileSystem ? "These settings are ignored when using three-file system." : "Configure which folders to scan for tasks.",
       cls: "setting-item-description"
     });
-    new import_obsidian8.Setting(containerEl).setName("Include only these folders").setDesc("Comma-separated list of folders to scan. Leave empty to scan entire vault.").addText((text) => text.setPlaceholder("7-Kanban-Boards, Projects").setValue(this.plugin.settings.includeFolders.join(", ")).onChange(async (value) => {
+    new import_obsidian9.Setting(containerEl).setName("Include only these folders").setDesc("Comma-separated list of folders to scan. Leave empty to scan entire vault.").addText((text) => text.setPlaceholder("7-Kanban-Boards, Projects").setValue(this.plugin.settings.includeFolders.join(", ")).onChange(async (value) => {
       this.plugin.settings.includeFolders = value.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
       await this.plugin.saveSettings();
       await this.plugin.refreshBoard();
     }));
-    new import_obsidian8.Setting(containerEl).setName("Excluded folders").setDesc("Comma-separated list of folders to exclude").addText((text) => text.setPlaceholder(".obsidian, templates").setValue(this.plugin.settings.excludeFolders.join(", ")).onChange(async (value) => {
+    new import_obsidian9.Setting(containerEl).setName("Excluded folders").setDesc("Comma-separated list of folders to exclude").addText((text) => text.setPlaceholder(".obsidian, templates").setValue(this.plugin.settings.excludeFolders.join(", ")).onChange(async (value) => {
       this.plugin.settings.excludeFolders = value.split(",").map((s) => s.trim());
       await this.plugin.saveSettings();
     }));
-    new import_obsidian8.Setting(containerEl).setName("Include completed tasks").setDesc("Show completed tasks in the board").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeCompleted).onChange(async (value) => {
+    new import_obsidian9.Setting(containerEl).setName("Include completed tasks").setDesc("Show completed tasks in the board").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeCompleted).onChange(async (value) => {
       this.plugin.settings.includeCompleted = value;
       await this.plugin.saveSettings();
       await this.plugin.refreshBoard();
@@ -4609,6 +4851,18 @@ var TaskBoardSettingTab = class extends import_obsidian8.PluginSettingTab {
       row.createEl("span", {
         cls: "taskboard-settings-column-tag",
         text: `#status/${col.id}`
+      });
+      const colorInput = row.createEl("input", {
+        type: "color",
+        cls: "taskboard-settings-column-color",
+        value: col.color || "#7b68ee",
+        attr: { title: "Column accent color" }
+      });
+      colorInput.addEventListener("change", async (e) => {
+        const target = e.target;
+        col.color = target.value;
+        await this.plugin.saveSettings();
+        await this.plugin.refreshBoard();
       });
       const editIdBtn = row.createEl("button", {
         text: "Edit ID",
@@ -4671,7 +4925,7 @@ var TaskBoardSettingTab = class extends import_obsidian8.PluginSettingTab {
   async deleteColumn(index) {
     const columns = this.plugin.settings.columns;
     if (columns.length <= 1) {
-      new import_obsidian8.Notice("Cannot delete the last column");
+      new import_obsidian9.Notice("Cannot delete the last column");
       return;
     }
     const col = columns[index];
@@ -4723,17 +4977,17 @@ var TaskBoardSettingTab = class extends import_obsidian8.PluginSettingTab {
       created++;
     }
     if (created > 0) {
-      new import_obsidian8.Notice(`Created ${created} file(s)`);
+      new import_obsidian9.Notice(`Created ${created} file(s)`);
     }
     if (skipped > 0 && created === 0) {
-      new import_obsidian8.Notice("All files already exist");
+      new import_obsidian9.Notice("All files already exist");
     }
     await this.plugin.refreshBoard();
   }
 };
 
 // src/main.ts
-var TaskBoardPlugin = class extends import_obsidian9.Plugin {
+var TaskBoardPlugin = class extends import_obsidian10.Plugin {
   async onload() {
     await this.loadSettings();
     this.registerView(
@@ -4755,6 +5009,27 @@ var TaskBoardPlugin = class extends import_obsidian9.Plugin {
       name: "Refresh TaskBoard",
       callback: () => {
         this.refreshBoard();
+      }
+    });
+    this.addCommand({
+      id: "toggle-filter-bar",
+      name: "Toggle Filter Bar",
+      callback: () => {
+        this.forEachBoardView((view) => view.toggleFilterBar());
+      }
+    });
+    this.addCommand({
+      id: "cycle-sort-mode",
+      name: "Cycle Sort Mode",
+      callback: () => {
+        this.forEachBoardView((view) => view.cycleSortMode());
+      }
+    });
+    this.addCommand({
+      id: "toggle-archive",
+      name: "Toggle Archive",
+      callback: () => {
+        this.forEachBoardView((view) => view.toggleArchive());
       }
     });
     this.addSettingTab(new TaskBoardSettingTab(this.app, this));
@@ -4788,6 +5063,14 @@ var TaskBoardPlugin = class extends import_obsidian9.Plugin {
       if (view && view.refresh) {
         await view.refresh();
       }
+    }
+  }
+  forEachBoardView(fn) {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASKBOARD);
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view)
+        fn(view);
     }
   }
 };

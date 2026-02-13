@@ -7,6 +7,7 @@ import { TaskUpdater } from '../services/TaskUpdater';
 import { DateUtils } from '../utils/DateUtils';
 import { AddTaskModal } from '../modals/AddTaskModal';
 import { ScheduleTaskModal } from '../modals/ScheduleTaskModal';
+import { EditTaskModal } from '../modals/EditTaskModal';
 
 export class TaskBoardView extends ItemView {
 	plugin: TaskBoardPlugin;
@@ -27,6 +28,9 @@ export class TaskBoardView extends ItemView {
 
 	// Unscheduled tasks visibility
 	showUnscheduled: boolean = false;
+
+	// Sort mode for columns
+	sortMode: 'default' | 'due-asc' | 'due-desc' | 'alpha' = 'default';
 
 	// Collapsible filter bar (defaults to collapsed on mobile)
 	filterBarCollapsed: boolean = Platform.isMobile;
@@ -116,6 +120,16 @@ export class TaskBoardView extends ItemView {
 
 	render() {
 		const container = this.containerEl.children[1];
+
+		// Save scroll positions before destroying DOM
+		const prevColumnsEl = container.querySelector('.taskboard-columns') as HTMLElement | null;
+		const savedScrollLeft = prevColumnsEl?.scrollLeft ?? 0;
+		const savedColumnScrolls = new Map<string, number>();
+		container.querySelectorAll('.taskboard-cards').forEach((el: Element) => {
+			const colId = el.getAttribute('data-column-id');
+			if (colId) savedColumnScrolls.set(colId, (el as HTMLElement).scrollTop);
+		});
+
 		container.empty();
 
 		const board = container.createEl('div', { cls: 'taskboard-container' });
@@ -123,7 +137,18 @@ export class TaskBoardView extends ItemView {
 		// Header
 		const header = board.createEl('div', { cls: 'taskboard-header' });
 		const headerRow = header.createEl('div', { cls: 'taskboard-header-row' });
-		headerRow.createEl('h2', { text: 'TaskBoard Pro' });
+
+		const headerLeft = headerRow.createEl('div', { cls: 'taskboard-header-left' });
+		headerLeft.createEl('span', { cls: 'taskboard-header-title', text: 'TaskBoard' });
+
+		// Apply filters
+		let filteredTasks = this.applyTimeFilter(this.tasks);
+		filteredTasks = this.applyTagFilter(filteredTasks);
+
+		headerLeft.createEl('span', {
+			cls: 'taskboard-header-count',
+			text: `${filteredTasks.length}/${this.tasks.length}`
+		});
 
 		const headerButtons = headerRow.createEl('div', { cls: 'taskboard-header-buttons' });
 
@@ -138,20 +163,42 @@ export class TaskBoardView extends ItemView {
 			});
 		}
 
+		const sortLabels: Record<string, string> = {
+			'default': 'Sort',
+			'due-asc': 'Sort: Due ↑',
+			'due-desc': 'Sort: Due ↓',
+			'alpha': 'Sort: A-Z'
+		};
+		const sortBtn = headerButtons.createEl('button', {
+			cls: 'taskboard-sort-btn' + (this.sortMode !== 'default' ? ' active' : ''),
+			text: sortLabels[this.sortMode]
+		});
+		sortBtn.addEventListener('click', () => this.cycleSortMode());
+
 		const refreshBtn = headerButtons.createEl('button', {
 			cls: 'taskboard-refresh-btn',
 			text: '↻ Refresh'
 		});
 		refreshBtn.addEventListener('click', () => this.refresh());
 
-		// Apply filters
-		let filteredTasks = this.applyTimeFilter(this.tasks);
-		filteredTasks = this.applyTagFilter(filteredTasks);
-
-		header.createEl('p', { text: `${filteredTasks.length} of ${this.tasks.length} tasks` });
-
 		// Filter bar
 		this.renderFilterBar(board, filteredTasks.length);
+
+		// Empty state when no tasks exist at all
+		if (this.tasks.length === 0) {
+			const empty = board.createEl('div', { cls: 'taskboard-empty-state' });
+			empty.createEl('h3', { text: 'No tasks found' });
+			if (this.plugin.settings.useThreeFileSystem) {
+				empty.createEl('p', {
+					text: `Add tasks to ${this.plugin.settings.todoFile} or click + on a column header.`
+				});
+			} else {
+				empty.createEl('p', {
+					text: 'Create a task with a checkbox (- [ ]) and a #status/todo tag in any markdown file.'
+				});
+			}
+			return;
+		}
 
 		// Columns
 		const columnsContainer = board.createEl('div', { cls: 'taskboard-columns' });
@@ -168,7 +215,17 @@ export class TaskBoardView extends ItemView {
 		// Status
 		const status = board.createEl('div', { cls: 'taskboard-status' });
 		status.createEl('span', {
-			text: Platform.isMobile ? 'Tap a card to move it' : 'Drag & drop to change status'
+			text: Platform.isMobile ? 'Tap a card to move it' : 'Drag & drop or right-click for options'
+		});
+
+		// Restore scroll positions
+		const newColumnsEl = container.querySelector('.taskboard-columns') as HTMLElement | null;
+		if (newColumnsEl) newColumnsEl.scrollLeft = savedScrollLeft;
+		container.querySelectorAll('.taskboard-cards').forEach((el: Element) => {
+			const colId = el.getAttribute('data-column-id');
+			if (colId && savedColumnScrolls.has(colId)) {
+				(el as HTMLElement).scrollTop = savedColumnScrolls.get(colId)!;
+			}
 		});
 	}
 
@@ -213,22 +270,20 @@ export class TaskBoardView extends ItemView {
 	renderFilterBar(container: HTMLElement, taskCount: number) {
 		const filterBar = container.createEl('div', { cls: 'taskboard-filter-bar' });
 
-		// On mobile, add a toggle button for the filter content
-		if (Platform.isMobile) {
-			const toggleBtn = filterBar.createEl('button', {
-				cls: 'taskboard-filter-toggle-btn',
-				text: this.filterBarCollapsed
-					? `Filters (${this.timeFilter.preset})  ▼`
-					: `Filters  ▲`
-			});
-			toggleBtn.addEventListener('click', () => {
-				this.filterBarCollapsed = !this.filterBarCollapsed;
-				this.render();
-			});
+		// Collapsible filter toggle (shown on all platforms)
+		const toggleBtn = filterBar.createEl('button', {
+			cls: 'taskboard-filter-toggle-btn',
+			text: this.filterBarCollapsed
+				? `Filters (${this.timeFilter.preset})  ▼`
+				: `Filters  ▲`
+		});
+		toggleBtn.addEventListener('click', () => {
+			this.filterBarCollapsed = !this.filterBarCollapsed;
+			this.render();
+		});
 
-			if (this.filterBarCollapsed) {
-				return; // Don't render filter content when collapsed
-			}
+		if (this.filterBarCollapsed) {
+			return; // Don't render filter content when collapsed
 		}
 
 		// Filter content wrapper
@@ -401,6 +456,11 @@ export class TaskBoardView extends ItemView {
 			attr: { 'data-column-id': config.id }
 		});
 
+		// Apply column accent color via CSS custom property
+		if (config.color) {
+			column.style.setProperty('--col-accent', config.color);
+		}
+
 		const headerEl = column.createEl('div', { cls: 'taskboard-column-header' });
 
 		const columnTasks = TaskScanner.filterTasksByStatus(
@@ -443,13 +503,15 @@ export class TaskBoardView extends ItemView {
 			this.setupDropZone(cardContainer, config);
 		}
 
-		if (columnTasks.length === 0) {
+		const sortedTasks = this.sortTasks(columnTasks);
+
+		if (sortedTasks.length === 0) {
 			cardContainer.createEl('div', {
 				cls: 'taskboard-card-empty',
 				text: Platform.isMobile ? 'No tasks' : 'Drop tasks here'
 			});
 		} else {
-			for (const task of columnTasks) {
+			for (const task of sortedTasks) {
 				this.renderCard(cardContainer, task, config.id === 'done');
 			}
 		}
@@ -506,7 +568,7 @@ export class TaskBoardView extends ItemView {
 		const menu = new Menu();
 
 		for (const col of this.plugin.settings.columns) {
-			if (col.id === task.status) continue; // Skip current column
+			if (col.id === task.status) continue;
 
 			menu.addItem((item) => {
 				item.setTitle(`Move to ${col.name}`)
@@ -528,10 +590,23 @@ export class TaskBoardView extends ItemView {
 			});
 		}
 
+		menu.addSeparator();
+
+		menu.addItem(item => item
+			.setTitle('Schedule...')
+			.onClick(() => this.openDatePickerForTask(task)));
+
+		menu.addItem(item => item
+			.setTitle('Edit...')
+			.onClick(() => this.openEditModal(task)));
+
+		menu.addItem(item => item
+			.setTitle('Open in file')
+			.onClick(() => this.openTaskFile(task)));
+
 		if (e instanceof MouseEvent) {
 			menu.showAtMouseEvent(e);
 		} else {
-			// For touch events, show at position
 			const touch = e.changedTouches[0];
 			menu.showAtPosition({ x: touch.clientX, y: touch.clientY });
 		}
@@ -552,11 +627,65 @@ export class TaskBoardView extends ItemView {
 		if (isMobile) {
 			// Mobile: tap to show move menu
 			card.addEventListener('click', (e) => {
-				// Don't trigger on button clicks within the card
-				if ((e.target as HTMLElement).closest('button, a')) return;
+				// Don't trigger on button/link/input clicks within the card
+				if ((e.target as HTMLElement).closest('button, a, input')) return;
 				this.showMoveMenu(e, task);
 			});
 		} else {
+			// Desktop: right-click context menu
+			card.addEventListener('contextmenu', (e) => {
+				e.preventDefault();
+				const menu = new Menu();
+
+				// Move to column options
+				for (const col of this.plugin.settings.columns) {
+					if (col.id === task.status) continue;
+					menu.addItem(item => item
+						.setTitle(`Move to ${col.name}`)
+						.onClick(async () => {
+							const isDoneColumn = col.id === 'done';
+							new Notice(`Moving task to ${col.name}...`);
+							const success = await this.taskUpdater.moveTask(task, col.id, isDoneColumn);
+							if (success) {
+								if (isDoneColumn && task.isRecurring) {
+									new Notice('Recurring task completed - new instance created!');
+								} else {
+									new Notice(`Task moved to ${col.name}`);
+								}
+								await this.refresh();
+							} else {
+								new Notice('Failed to move task');
+							}
+						}));
+				}
+
+				menu.addSeparator();
+
+				// Schedule
+				menu.addItem(item => item
+					.setTitle('Schedule...')
+					.onClick(() => this.openDatePickerForTask(task)));
+
+				// Archive (if in done column)
+				if (showArchive) {
+					menu.addItem(item => item
+						.setTitle('Archive')
+						.onClick(async () => this.archiveTask(task)));
+				}
+
+				// Edit
+				menu.addItem(item => item
+					.setTitle('Edit...')
+					.onClick(() => this.openEditModal(task)));
+
+				// Open file
+				menu.addItem(item => item
+					.setTitle('Open in file')
+					.onClick(() => this.openTaskFile(task)));
+
+				menu.showAtMouseEvent(e);
+			});
+
 			// Desktop: drag events
 			card.addEventListener('dragstart', (e) => {
 				this.draggedTask = task;
@@ -581,7 +710,26 @@ export class TaskBoardView extends ItemView {
 		// Card header
 		const headerEl = card.createEl('div', { cls: 'taskboard-card-header' });
 
-		headerEl.createEl('div', { cls: 'taskboard-card-text', text: task.text });
+		const checkbox = headerEl.createEl('input', {
+			type: 'checkbox',
+			cls: 'taskboard-card-checkbox'
+		});
+		if (task.completed) {
+			checkbox.checked = true;
+		}
+		checkbox.addEventListener('click', async (e) => {
+			e.stopPropagation();
+			const newState = (e.target as HTMLInputElement).checked;
+			await this.taskUpdater.toggleTaskCompletion(task, newState);
+			await this.refresh();
+		});
+
+		const textEl = headerEl.createEl('div', { cls: 'taskboard-card-text', text: task.text });
+		textEl.addEventListener('dblclick', (e) => {
+			e.stopPropagation();
+			e.preventDefault();
+			this.openEditModal(task);
+		});
 
 		if (showArchive) {
 			const archiveBtn = headerEl.createEl('button', {
@@ -601,6 +749,13 @@ export class TaskBoardView extends ItemView {
 
 		if (task.dueDate) {
 			const dueEl = metaEl.createEl('span', { cls: 'taskboard-card-due' });
+			// Add urgency class based on how close/past the due date is
+			const today = new Date(); today.setHours(0, 0, 0, 0);
+			const due = new Date(task.dueDate + 'T00:00:00');
+			const diffDays = Math.floor((due.getTime() - today.getTime()) / 86400000);
+			if (diffDays < 0) dueEl.addClass('taskboard-card-due-overdue');
+			else if (diffDays === 0) dueEl.addClass('taskboard-card-due-today');
+			else if (diffDays <= 2) dueEl.addClass('taskboard-card-due-soon');
 			dueEl.createEl('span', { text: '📅 ' });
 			dueEl.createEl('span', { text: this.formatDate(task.dueDate) });
 		} else {
@@ -645,17 +800,19 @@ export class TaskBoardView extends ItemView {
 			metaEl.createEl('span', { cls: 'taskboard-card-done', text: '✅' });
 		}
 
-		// Source file link
-		const sourceEl = card.createEl('div', { cls: 'taskboard-card-source' });
-		const link = sourceEl.createEl('a', {
-			text: this.getFileName(task.filePath),
-			cls: 'taskboard-card-link'
-		});
-		link.addEventListener('click', (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this.openTaskFile(task);
-		});
+		// Source file link (hidden in three-file mode since all tasks share the same files)
+		if (!this.plugin.settings.useThreeFileSystem) {
+			const sourceEl = card.createEl('div', { cls: 'taskboard-card-source' });
+			const link = sourceEl.createEl('a', {
+				text: this.getFileName(task.filePath),
+				cls: 'taskboard-card-link'
+			});
+			link.addEventListener('click', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this.openTaskFile(task);
+			});
+		}
 	}
 
 	async archiveTask(task: Task) {
@@ -741,6 +898,48 @@ export class TaskBoardView extends ItemView {
 
 	openDatePickerForTask(task: Task) {
 		new ScheduleTaskModal(
+			this.app,
+			task,
+			this.taskUpdater,
+			() => this.refresh()
+		).open();
+	}
+
+	toggleFilterBar() {
+		this.filterBarCollapsed = !this.filterBarCollapsed;
+		this.render();
+	}
+
+	toggleArchive() {
+		if (!this.plugin.settings.useThreeFileSystem) return;
+		this.showArchive = !this.showArchive;
+		this.refresh();
+	}
+
+	cycleSortMode() {
+		const modes: Array<typeof this.sortMode> = ['default', 'due-asc', 'due-desc', 'alpha'];
+		const currentIdx = modes.indexOf(this.sortMode);
+		this.sortMode = modes[(currentIdx + 1) % modes.length];
+		this.render();
+	}
+
+	sortTasks(tasks: Task[]): Task[] {
+		switch (this.sortMode) {
+			case 'due-asc':
+				return [...tasks].sort((a, b) =>
+					(a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
+			case 'due-desc':
+				return [...tasks].sort((a, b) =>
+					(b.dueDate || '0000-00-00').localeCompare(a.dueDate || '0000-00-00'));
+			case 'alpha':
+				return [...tasks].sort((a, b) => a.text.localeCompare(b.text));
+			default:
+				return tasks;
+		}
+	}
+
+	openEditModal(task: Task) {
+		new EditTaskModal(
 			this.app,
 			task,
 			this.taskUpdater,

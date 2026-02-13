@@ -28,6 +28,7 @@ export interface Task {
 export interface ColumnConfig {
 	id: string;      // Status value (e.g., "todo", "review") - used as #status/{id} tag
 	name: string;    // Display name (e.g., "To Do", "In Review")
+	color?: string;  // CSS color for column accent (header border, card left border)
 }
 
 // Time filter types

@@ -200,6 +200,51 @@ export class TaskUpdater {
 	}
 
 	/**
+	 * Update the text and optionally the due date of a task.
+	 * Preserves all other metadata (status tags, recurrence, completion markers).
+	 */
+	async updateTaskText(task: Task, newText: string, newDueDate: string | null): Promise<boolean> {
+		return this.modifyTaskLine(task, (line) => {
+			// Extract the prefix: leading whitespace + list marker + checkbox
+			const prefixMatch = line.match(/^(\s*[-*+]\s*\[[ xX]\]\s*)/);
+			if (!prefixMatch) return line;
+			const prefix = prefixMatch[1];
+
+			// Everything after the prefix
+			const afterPrefix = line.slice(prefix.length);
+
+			// Find where metadata starts (first emoji marker or #tag)
+			const metaMatch = afterPrefix.search(/[📅⏳✅🔁#]/);
+			const meta = metaMatch !== -1 ? afterPrefix.slice(metaMatch) : '';
+
+			// Update or add/remove due date in metadata
+			let updatedMeta = meta;
+			const duePat = /📅\s*\d{4}-\d{2}-\d{2}/;
+			if (newDueDate) {
+				if (duePat.test(updatedMeta)) {
+					updatedMeta = updatedMeta.replace(duePat, `📅 ${newDueDate}`);
+				} else {
+					// Insert due date before status tag or at the start of meta
+					const statusIdx = updatedMeta.search(/#status\//);
+					if (statusIdx > 0) {
+						updatedMeta = updatedMeta.slice(0, statusIdx) + `📅 ${newDueDate} ` + updatedMeta.slice(statusIdx);
+					} else if (statusIdx === 0) {
+						updatedMeta = `📅 ${newDueDate} ` + updatedMeta;
+					} else {
+						updatedMeta = `📅 ${newDueDate}` + (updatedMeta ? ' ' + updatedMeta : '');
+					}
+				}
+			} else {
+				// Remove due date if cleared
+				updatedMeta = updatedMeta.replace(duePat, '');
+			}
+
+			const parts = [prefix + newText, updatedMeta].filter(p => p.trim());
+			return parts.join(' ').replace(/\s+/g, ' ').trim();
+		});
+	}
+
+	/**
 	 * Archive a task — adds #archived tag so it disappears from board
 	 * (Used when three-file system is disabled)
 	 */

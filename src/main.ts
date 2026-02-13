@@ -35,6 +35,30 @@ export default class TaskBoardPlugin extends Plugin {
 			}
 		});
 
+		this.addCommand({
+			id: 'toggle-filter-bar',
+			name: 'Toggle Filter Bar',
+			callback: () => {
+				this.forEachBoardView(view => view.toggleFilterBar());
+			}
+		});
+
+		this.addCommand({
+			id: 'cycle-sort-mode',
+			name: 'Cycle Sort Mode',
+			callback: () => {
+				this.forEachBoardView(view => view.cycleSortMode());
+			}
+		});
+
+		this.addCommand({
+			id: 'toggle-archive',
+			name: 'Toggle Archive',
+			callback: () => {
+				this.forEachBoardView(view => view.toggleArchive());
+			}
+		});
+
 		this.addSettingTab(new TaskBoardSettingTab(this.app, this));
 	}
 
@@ -73,6 +97,14 @@ export default class TaskBoardPlugin extends Plugin {
 			if (view && view.refresh) {
 				await view.refresh();
 			}
+		}
+	}
+
+	private forEachBoardView(fn: (view: TaskBoardView) => void) {
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TASKBOARD);
+		for (const leaf of leaves) {
+			const view = leaf.view as TaskBoardView;
+			if (view) fn(view);
 		}
 	}
 }
