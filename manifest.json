@@ -2,7 +2,7 @@
 	"id": "taskboard-pro",
 	"name": "TaskBoard Pro",
 	"version": "0.1.0",
-	"minAppVersion": "1.0.0",
+	"minAppVersion": "1.4.0",
 	"description": "Kanban-style task board with Tasks plugin integration for recurring tasks",
 	"author": "Rusen",
 	"isDesktopOnly": false

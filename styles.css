@@ -716,3 +716,158 @@
 	border-left: 3px solid var(--interactive-accent);
 	margin-bottom: 16px;
 }
+
+/* ========================================
+   Filter Bar Toggle (mobile)
+   ======================================== */
+
+.taskboard-filter-toggle-btn {
+	width: 100%;
+	padding: 8px 12px;
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+	font-size: 0.85em;
+	text-align: left;
+}
+
+.taskboard-filter-content {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+/* ========================================
+   Mobile: Phone Layout
+   ======================================== */
+
+body.is-mobile .taskboard-container {
+	padding: 10px;
+}
+
+body.is-mobile .taskboard-header-row {
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+body.is-mobile .taskboard-header h2 {
+	font-size: 1.2em;
+}
+
+/* Stack columns vertically on phones */
+body.is-mobile .taskboard-columns {
+	flex-direction: column;
+	overflow-x: visible;
+}
+
+body.is-mobile .taskboard-column {
+	max-width: none;
+	min-width: auto;
+}
+
+/* Card: pointer cursor instead of grab on mobile */
+body.is-mobile .taskboard-card {
+	cursor: pointer;
+	padding: 12px 14px;
+}
+
+body.is-mobile .taskboard-card:active {
+	cursor: pointer;
+}
+
+/* 44px minimum tap targets (Apple HIG) for all interactive elements */
+body.is-mobile button,
+body.is-mobile .taskboard-card-link {
+	min-height: 44px;
+	min-width: 44px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+body.is-mobile .taskboard-filter-preset-btn {
+	padding: 8px 14px;
+	font-size: 0.9em;
+}
+
+body.is-mobile .taskboard-tag-chip {
+	padding: 8px 14px;
+	font-size: 0.85em;
+}
+
+body.is-mobile .taskboard-quick-schedule-btn {
+	padding: 6px 12px;
+	font-size: 0.85em;
+}
+
+body.is-mobile .taskboard-archive-btn {
+	padding: 6px 8px;
+	font-size: 1em;
+	opacity: 1;
+}
+
+body.is-mobile .taskboard-unarchive-btn {
+	padding: 8px 14px;
+	font-size: 0.85em;
+}
+
+body.is-mobile .taskboard-add-task-btn {
+	width: 44px;
+	height: 44px;
+	font-size: 1.4em;
+}
+
+/* Better card meta wrapping on narrow screens */
+body.is-mobile .taskboard-card-meta {
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+/* Slightly more padding for archive rows on mobile */
+body.is-mobile .taskboard-archive-row {
+	padding: 10px 14px;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+/* Filter dates stack vertically on mobile */
+body.is-mobile .taskboard-filter-dates {
+	flex-direction: column;
+	align-items: stretch;
+	gap: 8px;
+}
+
+body.is-mobile .taskboard-filter-count {
+	margin-left: 0;
+}
+
+/* ========================================
+   Mobile: Tablet Layout (horizontal scroll-snap)
+   ======================================== */
+
+@media (min-width: 768px) {
+	body.is-mobile .taskboard-columns {
+		flex-direction: row;
+		overflow-x: auto;
+		scroll-snap-type: x mandatory;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	body.is-mobile .taskboard-column {
+		min-width: 280px;
+		max-width: 320px;
+		scroll-snap-align: start;
+		flex-shrink: 0;
+	}
+
+	body.is-mobile .taskboard-filter-dates {
+		flex-direction: row;
+		align-items: center;
+	}
+
+	body.is-mobile .taskboard-filter-count {
+		margin-left: auto;
+	}
+}
